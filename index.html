@@ -3,17 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Dual Camera Feed</title>
+    <title>Dual Camera Feed with Tilt</title>
     <style>
         body {
             margin: 0;
             overflow: auto; /* Allow scrolling */
             display: flex;
             justify-content: center;
-            align-items: center;
+            align-items: flex-start;
             flex-direction: column;
             background-color: #000;
-            height: 100vh; /* Ensure full viewport height */
+            height: 200vh; /* Allow scrolling by extending body height */
         }
 
         .container {
@@ -21,23 +21,34 @@
             flex-direction: row;
             justify-content: space-around;
             align-items: center;
-            width: 100%;
-            height: 80vh; /* You can adjust this to make the container height flexible */
-            overflow: auto; /* Allow scrolling inside the container if necessary */
+            width: 100vw;
+            height: 100vh;
+            perspective: 1000px; /* Enables 3D perspective */
         }
 
         canvas {
-            width: 45%;
-            height: auto;
+            flex: 1 1 auto; /* Allow canvases to grow and shrink */
+            max-width: 50%; /* Each canvas takes half the screen width */
+            max-height: 100%; /* Ensure canvases fit within screen height */
             border: 2px solid white;
             border-radius: 10px;
+            transform-origin: center;
+            transition: transform 0.2s ease;
         }
 
         .controls {
-            margin-bottom: 10px;
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            flex-direction: row;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
         }
 
-        button {
+        button, input[type="range"] {
             margin: 5px;
             padding: 10px 20px;
             font-size: 1rem;
@@ -48,8 +59,12 @@
             cursor: pointer;
         }
 
-        button:hover {
+        button:hover, input[type="range"]:hover {
             background-color: #666;
+        }
+
+        input[type="range"] {
+            width: 300px;
         }
 
         @media (orientation: portrait) {
@@ -79,6 +94,9 @@
     <div class="controls">
         <button id="startButton">Start Camera</button>
         <button id="switchButton">Switch Camera</button>
+        <label>
+            Tilt: <input id="tiltSlider" type="range" min="0" max="0.7" step="0.01" value="0">
+        </label>
     </div>
     <div class="container">
         <canvas id="canvas1"></canvas>
@@ -91,12 +109,10 @@
         let useFrontCamera = false;
 
         async function startCamera() {
-            // Stop any existing stream
             if (currentStream) {
                 currentStream.getTracks().forEach(track => track.stop());
             }
 
-            // Define constraints
             const constraints = {
                 video: {
                     facingMode: useFrontCamera ? "user" : "environment"
@@ -105,7 +121,6 @@
             };
 
             try {
-                // Get new camera stream
                 currentStream = await navigator.mediaDevices.getUserMedia(constraints);
                 attachStreamToVideo(currentStream);
             } catch (error) {
@@ -115,9 +130,8 @@
         }
 
         function attachStreamToVideo(stream) {
-            // Reinitialize video element
             if (video) {
-                video.srcObject = null; // Clear old stream
+                video.srcObject = null;
             } else {
                 video = document.createElement('video');
                 video.autoplay = true;
@@ -143,23 +157,28 @@
             const ctx1 = canvas1.getContext('2d');
             const ctx2 = canvas2.getContext('2d');
 
-            canvas1.width = canvas2.width = video.videoWidth;
-            canvas1.height = canvas2.height = video.videoHeight;
+            function adjustCanvasSize() {
+                const aspectRatio = video.videoWidth / video.videoHeight;
+                canvas1.width = canvas2.width = window.innerWidth / 2;
+                canvas1.height = canvas2.height = canvas1.width / aspectRatio;
+            }
 
             function drawFrame() {
                 if (!video || video.paused || video.ended) return;
 
+                adjustCanvasSize();
+
                 ctx1.drawImage(video, 0, 0, canvas1.width, canvas1.height);
                 ctx2.drawImage(video, 0, 0, canvas2.width, canvas2.height);
 
-                // Apply effects to the left frame (remove green channel)
+                // Remove green channel from left frame
                 const frame1 = ctx1.getImageData(0, 0, canvas1.width, canvas1.height);
                 for (let i = 0; i < frame1.data.length; i += 4) {
                     frame1.data[i + 1] = 0; // Set green channel to 0
                 }
                 ctx1.putImageData(frame1, 0, 0);
 
-                // Apply effects to the right frame (remove red channel)
+                // Remove red channel from right frame
                 const frame2 = ctx2.getImageData(0, 0, canvas2.width, canvas2.height);
                 for (let i = 0; i < frame2.data.length; i += 4) {
                     frame2.data[i] = 0; // Set red channel to 0
@@ -172,8 +191,30 @@
             drawFrame();
         }
 
+        function applyTilt(tiltValue) {
+            const canvas1 = document.getElementById('canvas1');
+            const canvas2 = document.getElementById('canvas2');
+
+            // Tilt canvases away or toward each other
+            canvas1.style.transform = `rotateY(${tiltValue}rad)`;
+            canvas2.style.transform = `rotateY(${-tiltValue}rad)`;
+        }
+
         document.getElementById('startButton').addEventListener('click', startCamera);
         document.getElementById('switchButton').addEventListener('click', switchCamera);
+        document.getElementById('tiltSlider').addEventListener('input', (event) => {
+            const tiltValue = parseFloat(event.target.value);
+            applyTilt(tiltValue);
+        });
+
+        window.addEventListener('resize', () => {
+            const canvas1 = document.getElementById('canvas1');
+            const canvas2 = document.getElementById('canvas2');
+            if (canvas1 && canvas2) {
+                canvas1.width = canvas2.width = window.innerWidth / 2;
+                canvas1.height = canvas2.height = window.innerHeight;
+            }
+        });
     </script>
 </body>
 </html>
