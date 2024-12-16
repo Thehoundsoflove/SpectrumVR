@@ -3,17 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Dual Camera Feed with Tilt</title>
+    <title>Virtual spectrum</title>
     <style>
         body {
             margin: 0;
-            overflow: auto; /* Allow scrolling */
+            overflow: auto;
             display: flex;
             justify-content: center;
             align-items: flex-start;
             flex-direction: column;
             background-color: #000;
-            height: 200vh; /* Allow scrolling by extending body height */
+            height: 300vh;
         }
 
         .container {
@@ -23,13 +23,13 @@
             align-items: center;
             width: 100vw;
             height: 100vh;
-            perspective: 1000px; /* Enables 3D perspective */
+            perspective: 1000px;
         }
 
         canvas {
-            flex: 1 1 auto; /* Allow canvases to grow and shrink */
-            max-width: 50%; /* Each canvas takes half the screen width */
-            max-height: 100%; /* Ensure canvases fit within screen height */
+            flex: 1 1 auto;
+            max-width: 50%;
+            max-height: 100%;
             border: 2px solid white;
             border-radius: 10px;
             transform-origin: center;
@@ -38,7 +38,7 @@
 
         .controls {
             position: absolute;
-            top: 10px;
+            top: 5px;
             left: 50%;
             transform: translateX(-50%);
             display: flex;
@@ -46,6 +46,32 @@
             justify-content: center;
             align-items: center;
             z-index: 1000;
+        }
+
+        .color-controls {
+            position: absolute;
+            bottom: 10px;
+            width: 100vw;
+            display: flex;
+            justify-content: space-around;
+            gap: 20px;
+            z-index: 1000;
+            color: white;
+        }
+
+        .sliders {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 2px;
+        }
+
+        label {
+            font-size: 0.9rem;
+        }
+
+        input[type="range"] {
+            width: 100px;
         }
 
         button, input[type="range"] {
@@ -61,10 +87,6 @@
 
         button:hover, input[type="range"]:hover {
             background-color: #666;
-        }
-
-        input[type="range"] {
-            width: 300px;
         }
 
         @media (orientation: portrait) {
@@ -84,7 +106,7 @@
                 display: none;
             }
 
-            .controls {
+            .controls, .color-controls {
                 display: none;
             }
         }
@@ -101,6 +123,24 @@
     <div class="container">
         <canvas id="canvas1"></canvas>
         <canvas id="canvas2"></canvas>
+    </div>
+    <div class="color-controls">
+        <div class="sliders">
+            <label for="redSlider1">Red</label>
+            <input id="redSlider1" type="range" min="0" max="255" step="1" value="255">
+            <label for="greenSlider1">Green</label>
+            <input id="greenSlider1" type="range" min="0" max="255" step="1" value="255">
+            <label for="blueSlider1">Blue</label>
+            <input id="blueSlider1" type="range" min="0" max="255" step="1" value="255">
+        </div>
+        <div class="sliders">
+            <label for="redSlider2">Red</label>
+            <input id="redSlider2" type="range" min="0" max="255" step="1" value="255">
+            <label for="greenSlider2">Green</label>
+            <input id="greenSlider2" type="range" min="0" max="255" step="1" value="255">
+            <label for="blueSlider2">Blue</label>
+            <input id="blueSlider2" type="range" min="0" max="255" step="1" value="255">
+        </div>
     </div>
 
     <script>
@@ -171,19 +211,8 @@
                 ctx1.drawImage(video, 0, 0, canvas1.width, canvas1.height);
                 ctx2.drawImage(video, 0, 0, canvas2.width, canvas2.height);
 
-                // Remove green channel from left frame
-                const frame1 = ctx1.getImageData(0, 0, canvas1.width, canvas1.height);
-                for (let i = 0; i < frame1.data.length; i += 4) {
-                    frame1.data[i + 1] = 0; // Set green channel to 0
-                }
-                ctx1.putImageData(frame1, 0, 0);
-
-                // Remove red channel from right frame
-                const frame2 = ctx2.getImageData(0, 0, canvas2.width, canvas2.height);
-                for (let i = 0; i < frame2.data.length; i += 4) {
-                    frame2.data[i] = 0; // Set red channel to 0
-                }
-                ctx2.putImageData(frame2, 0, 0);
+                applyColorAdjustments(ctx1, canvas1, 'redSlider1', 'greenSlider1', 'blueSlider1');
+                applyColorAdjustments(ctx2, canvas2, 'redSlider2', 'greenSlider2', 'blueSlider2');
 
                 requestAnimationFrame(drawFrame);
             }
@@ -191,11 +220,24 @@
             drawFrame();
         }
 
+        function applyColorAdjustments(ctx, canvas, redId, greenId, blueId) {
+            const redValue = document.getElementById(redId).value;
+            const greenValue = document.getElementById(greenId).value;
+            const blueValue = document.getElementById(blueId).value;
+
+            const frame = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            for (let i = 0; i < frame.data.length; i += 4) {
+                frame.data[i] = (frame.data[i] * redValue) / 255;     // Red
+                frame.data[i + 1] = (frame.data[i + 1] * greenValue) / 255; // Green
+                frame.data[i + 2] = (frame.data[i + 2] * blueValue) / 255;  // Blue
+            }
+            ctx.putImageData(frame, 0, 0);
+        }
+
         function applyTilt(tiltValue) {
             const canvas1 = document.getElementById('canvas1');
             const canvas2 = document.getElementById('canvas2');
 
-            // Tilt canvases away or toward each other
             canvas1.style.transform = `rotateY(${tiltValue}rad)`;
             canvas2.style.transform = `rotateY(${-tiltValue}rad)`;
         }
@@ -217,5 +259,4 @@
         });
     </script>
 </body>
-</html>
 
